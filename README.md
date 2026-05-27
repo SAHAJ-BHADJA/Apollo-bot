@@ -160,11 +160,12 @@ VITE_APP_API_TOKEN=the_same_value_as_backend_APP_API_TOKEN
 
 ## Deploy for Personal Use
 
-Recommended personal hosting:
+Free personal hosting:
 
 - Frontend: Vercel
-- Backend: Render always-on web service
-- Storage: SQLite on a Render persistent disk
+- Backend: Render Free web service
+- Database: Neon Free Postgres
+- Keep-alive: cron-job.org pinging `/health` every 5 minutes
 
 This repo includes:
 
@@ -172,6 +173,25 @@ This repo includes:
 - `frontend/vercel.json` for the Vite frontend
 - `backend/.env.example`
 - `frontend/.env.example`
+
+### Neon Postgres
+
+Create a free Neon project and copy the pooled connection string. It should look like:
+
+```text
+postgresql://user:password@host/dbname?sslmode=require
+```
+
+Use that as `DATABASE_URL` on Render.
+
+If you want to preserve your local SQLite data, run this migration from `backend` after setting `DATABASE_URL` locally:
+
+```bash
+python -c "from app.database import init_db; init_db()"
+python scripts/migrate_sqlite_to_postgres.py
+```
+
+The migration copies rows from your local `apollo_leads.sqlite3` into Neon and preserves ids where possible.
 
 ### Render Backend
 
@@ -183,18 +203,12 @@ Build command: pip install -r requirements.txt
 Start command: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Use a persistent disk mounted at:
-
-```text
-/var/data
-```
-
 Set these Render environment variables:
 
 ```env
-SQLITE_PATH=/var/data/apollo_leads.sqlite3
-UPLOAD_DIR=/var/data/uploads
-EXPORT_DIR=/var/data/exports
+DATABASE_URL=your_neon_postgres_connection_string
+UPLOAD_DIR=/tmp/uploads
+EXPORT_DIR=/tmp/exports
 APP_API_TOKEN=your_long_random_token
 APOLLO_API_KEYS=...
 APOLLO_ACCOUNT_EMAILS=...
@@ -209,7 +223,15 @@ TRACKING_BASE_URL=https://your-render-service.onrender.com
 FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
 ```
 
-Use an always-on Render plan. If the backend sleeps, scheduled emails and reply checks will not run while it is asleep.
+Render Free can sleep. Use cron-job.org to ping this endpoint every 5 minutes:
+
+```text
+https://your-render-service.onrender.com/health
+```
+
+Because scheduled messages live in Neon, Render restarts do not wipe campaign state. If Render sleeps anyway, messages may send late after it wakes up.
+
+Avoid attachments on the free hosted setup unless you add object storage. Render Free local files under `/tmp` are ephemeral.
 
 ### Google OAuth Update
 

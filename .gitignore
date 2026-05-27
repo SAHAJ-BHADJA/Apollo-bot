@@ -9,6 +9,7 @@ venv/
 *.db
 backend/exports/
 backend/uploads/
+backups/
 node_modules/
 dist/
 .vite/

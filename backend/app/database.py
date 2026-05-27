@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Any, Iterable, Iterator
 
 from .config import get_settings
 
@@ -19,27 +19,106 @@ def mask_key(key: str) -> str:
     return f"{stripped[:6]}******{stripped[-6:]}"
 
 
+class DatabaseCursor:
+    def __init__(self, cursor: Any, lastrowid: int | None = None):
+        self.cursor = cursor
+        self.lastrowid = lastrowid if lastrowid is not None else getattr(cursor, "lastrowid", None)
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+
+class DatabaseConnection:
+    def __init__(self, raw: Any, dialect: str):
+        self.raw = raw
+        self.dialect = dialect
+
+    def execute(self, sql: str, params: Iterable[Any] | None = None) -> DatabaseCursor:
+        params = tuple(params or ())
+        if self.dialect == "postgres":
+            sql = self._postgres_sql(sql)
+        cursor = self.raw.execute(sql, params)
+        return DatabaseCursor(cursor)
+
+    def insert_and_get_id(self, sql: str, params: Iterable[Any] | None = None) -> int:
+        params = tuple(params or ())
+        if self.dialect == "postgres":
+            cursor = self.raw.execute(f"{self._postgres_sql(sql).rstrip()} RETURNING id", params)
+            row = cursor.fetchone()
+            return int(row["id"])
+        cursor = self.raw.execute(sql, params)
+        return int(cursor.lastrowid)
+
+    def commit(self) -> None:
+        self.raw.commit()
+
+    def rollback(self) -> None:
+        self.raw.rollback()
+
+    def close(self) -> None:
+        self.raw.close()
+
+    @staticmethod
+    def _postgres_sql(sql: str) -> str:
+        converted = _postgres_ddl(sql).replace("?", "%s")
+        if "INSERT OR IGNORE INTO" in converted:
+            converted = converted.replace("INSERT OR IGNORE INTO", "INSERT INTO", 1)
+            converted = f"{converted.rstrip()} ON CONFLICT DO NOTHING"
+        return converted
+
+
+def _postgres_ddl(sql: str) -> str:
+    return sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+
+
 @contextmanager
-def get_db() -> Iterator[sqlite3.Connection]:
+def get_db() -> Iterator[DatabaseConnection]:
     settings = get_settings()
-    Path(settings.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(settings.sqlite_path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 30000")
-    try:
-        conn.execute("PRAGMA journal_mode = WAL")
-    except sqlite3.OperationalError:
-        pass
-    conn.execute("PRAGMA foreign_keys = ON")
+    if settings.database_url.strip():
+        from psycopg import connect
+        from psycopg.rows import dict_row
+
+        raw = connect(settings.database_url.strip(), row_factory=dict_row)
+        conn = DatabaseConnection(raw, "postgres")
+    else:
+        Path(settings.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
+        raw = sqlite3.connect(settings.sqlite_path, timeout=30)
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA busy_timeout = 30000")
+        try:
+            raw.execute("PRAGMA journal_mode = WAL")
+        except sqlite3.OperationalError:
+            pass
+        raw.execute("PRAGMA foreign_keys = ON")
+        conn = DatabaseConnection(raw, "sqlite")
     try:
         yield conn
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
-def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
-    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+def ensure_column(conn: DatabaseConnection, table: str, column: str, definition: str) -> None:
+    if conn.dialect == "postgres":
+        existing = {
+            row["column_name"]
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = %s
+                """,
+                (table,),
+            ).fetchall()
+        }
+    else:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in existing:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
@@ -354,7 +433,7 @@ def create_search_run(
     account_used: int | None,
 ) -> int:
     with get_db() as conn:
-        cur = conn.execute(
+        return conn.insert_and_get_id(
             """
             INSERT INTO search_runs
             (company_name, company_domain, selected_titles_json, target_count, preview_count,
@@ -371,7 +450,6 @@ def create_search_run(
                 utc_now(),
             ),
         )
-        return int(cur.lastrowid)
 
 
 def update_latest_search_verified_count(

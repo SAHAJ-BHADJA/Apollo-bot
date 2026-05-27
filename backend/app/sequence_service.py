@@ -47,14 +47,13 @@ class SequenceService:
         rows = verified_audience_rows(enriched_people, preview_people)
         now = utc_now()
         with get_db() as conn:
-            cur = conn.execute(
+            campaign_id = conn.insert_and_get_id(
                 """
                 INSERT INTO campaigns (name, created_at, updated_at)
                 VALUES (?, ?, ?)
                 """,
                 (name.strip() or "Apollo Outreach Sequence", now, now),
             )
-            campaign_id = int(cur.lastrowid)
             for row in rows:
                 conn.execute(
                     """

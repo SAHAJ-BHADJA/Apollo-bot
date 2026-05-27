@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     )
     apollo_people_match_path: str = Field(default="/people/match", alias="APOLLO_PEOPLE_MATCH_PATH")
     apollo_bulk_match_path: str = Field(default="/people/bulk_match", alias="APOLLO_BULK_MATCH_PATH")
+    database_url: str = Field(default="", alias="DATABASE_URL")
     sqlite_path: Path = Field(default=BACKEND_DIR / "apollo_leads.sqlite3", alias="SQLITE_PATH")
     upload_dir: Path = Field(default=BACKEND_DIR / "uploads", alias="UPLOAD_DIR")
     export_dir: Path = Field(default=BACKEND_DIR / "exports", alias="EXPORT_DIR")
