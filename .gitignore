@@ -1,0 +1,15 @@
+.env
+*.env
+!*.env.example
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.sqlite3
+*.db
+backend/exports/
+backend/uploads/
+node_modules/
+dist/
+.vite/
+coverage/

@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: lead-extractor-backend
+    env: python
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: lead-extractor-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: SQLITE_PATH
+        value: /var/data/apollo_leads.sqlite3
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: EXPORT_DIR
+        value: /var/data/exports
+      - key: FRONTEND_ORIGIN
+        value: https://your-vercel-app.vercel.app
+      - key: TRACKING_BASE_URL
+        value: https://your-render-service.onrender.com
+      - key: GOOGLE_REDIRECT_URI
+        value: https://your-render-service.onrender.com/gmail/oauth/callback
+      - key: APP_API_TOKEN
+        sync: false
+      - key: APOLLO_API_KEYS
+        sync: false
+      - key: APOLLO_ACCOUNT_EMAILS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_SENDER_EMAIL
+        sync: false
+      - key: SENDER_DISPLAY_NAMES
+        sync: false
+      - key: SENDER_DAILY_LIMITS
+        value: "400"
