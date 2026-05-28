@@ -3,6 +3,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
 from psycopg import connect
 from psycopg.rows import dict_row
 
@@ -38,6 +39,10 @@ def placeholders(count: int) -> str:
 
 def main() -> int:
     backend_dir = Path(__file__).resolve().parents[1]
+    project_dir = backend_dir.parent
+    workspace_dir = project_dir.parent
+    load_dotenv(workspace_dir / ".env")
+    load_dotenv(backend_dir / ".env")
     sys.path.insert(0, str(backend_dir))
 
     from app.database import init_db
