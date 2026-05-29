@@ -97,6 +97,7 @@ export default function App() {
   const [companyName, setCompanyName] = useState('');
   const [companyDomain, setCompanyDomain] = useState('');
   const [maxPeople, setMaxPeople] = useState(5000);
+  const [locations, setLocations] = useState('United States');
   const [selectedTitles, setSelectedTitles] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -207,6 +208,10 @@ export default function App() {
         company_name: companyName,
         company_domain: companyDomain,
         titles: selectedTitles,
+        locations: locations
+          .split(',')
+          .map((location) => location.trim())
+          .filter(Boolean),
         target_count: Number(maxPeople),
         apollo_account_index: selectedAccount,
       });
@@ -442,6 +447,8 @@ export default function App() {
           setCompanyDomain={setCompanyDomain}
           maxPeople={maxPeople}
           setMaxPeople={setMaxPeople}
+          locations={locations}
+          setLocations={setLocations}
           selectedTitles={selectedTitles}
           setSelectedTitles={setSelectedTitles}
           accounts={accounts}
@@ -591,6 +598,15 @@ function Extractor(props) {
           <section className="field-group">
             <label htmlFor="max-people">Max people</label>
             <input id="max-people" type="number" min="1" max="5000" value={props.maxPeople} onChange={(event) => props.setMaxPeople(event.target.value)} />
+          </section>
+          <section className="field-group">
+            <label htmlFor="person-locations">Person locations</label>
+            <input
+              id="person-locations"
+              value={props.locations}
+              onChange={(event) => props.setLocations(event.target.value)}
+              placeholder="United States"
+            />
           </section>
           <AccountSelector accounts={props.accounts} value={props.selectedAccount} onChange={props.setSelectedAccount} />
         </div>

@@ -100,6 +100,7 @@ class AccountManager:
         company_name: str,
         company_domain: str,
         titles: list[str],
+        locations: list[str],
         target_count: int,
         requested_index: int | None = None,
     ) -> tuple[list[dict], AccountResult]:
@@ -111,7 +112,7 @@ class AccountManager:
         while True:
             try:
                 people = self._client(account_index).search_people(
-                    company_name, company_domain, titles, target_count
+                    company_name, company_domain, titles, locations, target_count
                 )
                 mark_account_used(account_index, "preview")
                 update_account_status(account_index, "active", "")

@@ -106,6 +106,7 @@ class ApolloClient:
         company_name: str,
         company_domain: str,
         titles: list[str],
+        locations: list[str],
         target_count: int,
     ) -> list[dict[str, str]]:
         people: list[dict[str, str]] = []
@@ -119,8 +120,10 @@ class ApolloClient:
                 ("per_page", per_page),
                 ("include_similar_titles", "true"),
                 ("contact_email_status[]", "verified"),
-                ("person_locations[]", "United States"),
             ]
+            for location in locations:
+                if location.strip():
+                    params.append(("person_locations[]", location.strip()))
             for title in titles:
                 if title.strip():
                     params.append(("person_titles[]", title.strip()))

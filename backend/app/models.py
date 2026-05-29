@@ -14,6 +14,7 @@ class PreviewPeopleRequest(BaseModel):
     company_name: str = ""
     company_domain: str = ""
     titles: list[str] = Field(default_factory=list)
+    locations: list[str] = Field(default_factory=lambda: ["United States"])
     target_count: int = Field(default=30, ge=1, le=5000)
     apollo_account_index: int | None = None
 

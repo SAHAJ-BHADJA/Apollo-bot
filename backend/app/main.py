@@ -180,6 +180,7 @@ def preview_people(payload: PreviewPeopleRequest) -> PreviewPeopleResponse:
             payload.company_name,
             payload.company_domain,
             payload.titles,
+            payload.locations,
             payload.target_count,
             payload.apollo_account_index,
         )
