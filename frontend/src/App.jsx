@@ -13,6 +13,7 @@ import {
   Search,
   Send,
   WandSparkles,
+  X,
 } from 'lucide-react';
 import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -61,6 +62,17 @@ const DEFAULT_SETTINGS = {
   stop_on_reply: true,
 };
 
+const DEFAULT_LOCATION_OPTIONS = [
+  'United States',
+  'Canada',
+  'United Kingdom',
+  'California',
+  'New York',
+  'San Francisco Bay Area',
+  'Los Angeles',
+  'Remote',
+];
+
 function formatDateTime(value) {
   if (!value) return 'None scheduled';
   const date = new Date(value);
@@ -97,7 +109,7 @@ export default function App() {
   const [companyName, setCompanyName] = useState('');
   const [companyDomain, setCompanyDomain] = useState('');
   const [maxPeople, setMaxPeople] = useState(5000);
-  const [locations, setLocations] = useState('United States');
+  const [locations, setLocations] = useState(['United States']);
   const [selectedTitles, setSelectedTitles] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -208,10 +220,7 @@ export default function App() {
         company_name: companyName,
         company_domain: companyDomain,
         titles: selectedTitles,
-        locations: locations
-          .split(',')
-          .map((location) => location.trim())
-          .filter(Boolean),
+        locations,
         target_count: Number(maxPeople),
         apollo_account_index: selectedAccount,
       });
@@ -599,17 +608,10 @@ function Extractor(props) {
             <label htmlFor="max-people">Max people</label>
             <input id="max-people" type="number" min="1" max="5000" value={props.maxPeople} onChange={(event) => props.setMaxPeople(event.target.value)} />
           </section>
-          <section className="field-group">
-            <label htmlFor="person-locations">Person locations</label>
-            <input
-              id="person-locations"
-              value={props.locations}
-              onChange={(event) => props.setLocations(event.target.value)}
-              placeholder="United States"
-            />
-          </section>
           <AccountSelector accounts={props.accounts} value={props.selectedAccount} onChange={props.setSelectedAccount} />
         </div>
+
+        <LocationSelector locations={props.locations} onChange={props.setLocations} />
 
         <TitleSelector selectedTitles={props.selectedTitles} onChange={props.setSelectedTitles} />
 
@@ -637,6 +639,70 @@ function Extractor(props) {
         </div>
         <PeopleTable people={props.people} loading={props.previewing} />
       </section>
+    </section>
+  );
+}
+
+function LocationSelector({ locations, onChange }) {
+  const [customLocation, setCustomLocation] = useState('');
+
+  const addLocation = (location) => {
+    const trimmed = location.trim();
+    if (!trimmed) return;
+    const exists = locations.some((item) => item.toLowerCase() === trimmed.toLowerCase());
+    if (!exists) onChange([...locations, trimmed]);
+    setCustomLocation('');
+  };
+
+  const removeLocation = (location) => {
+    onChange(locations.filter((item) => item !== location));
+  };
+
+  return (
+    <section className="field-group location-control">
+      <div className="filter-heading">
+        <label>Location</label>
+        <span>{locations.length} selected</span>
+      </div>
+      <div className="selected-filter-row">
+        <span>Person Locations:</span>
+        {locations.length === 0 && <em>Global search</em>}
+        {locations.map((location) => (
+          <button className="filter-chip" type="button" key={location} onClick={() => removeLocation(location)}>
+            {location}
+            <X size={14} />
+          </button>
+        ))}
+      </div>
+      <div className="chip-row">
+        {DEFAULT_LOCATION_OPTIONS.map((location) => (
+          <button
+            className="chip"
+            type="button"
+            key={location}
+            disabled={locations.some((item) => item.toLowerCase() === location.toLowerCase())}
+            onClick={() => addLocation(location)}
+          >
+            {location}
+          </button>
+        ))}
+      </div>
+      <div className="inline-row">
+        <input
+          value={customLocation}
+          onChange={(event) => setCustomLocation(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              addLocation(customLocation);
+            }
+          }}
+          placeholder="Add city, state, or country"
+        />
+        <button className="icon-button" type="button" onClick={() => addLocation(customLocation)}>
+          <Plus size={20} />
+        </button>
+      </div>
     </section>
   );
 }
