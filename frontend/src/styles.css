@@ -59,6 +59,15 @@ button:disabled {
   color: #334049;
 }
 
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #1f6f78;
+  font-size: 0.82rem;
+  min-height: 28px;
+  padding: 0;
+}
+
 .danger-button {
   background: #b43b30;
   border-color: #b43b30;
@@ -205,6 +214,10 @@ h2 {
 
 .account-control select {
   font-weight: 700;
+}
+
+.account-control .filter-heading {
+  margin-bottom: -0.1rem;
 }
 
 .account-summary {
@@ -363,6 +376,57 @@ h2 {
 
 .icon-button {
   padding: 0;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(23, 32, 38, 0.38);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 20;
+}
+
+.modal-card {
+  background: #fff;
+  border: 1px solid #dbe2e6;
+  border-radius: 8px;
+  box-shadow: 0 20px 70px rgba(23, 32, 38, 0.24);
+  display: grid;
+  gap: 0.9rem;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  width: min(520px, 100%);
+}
+
+.modal-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.modal-heading p {
+  color: #526068;
+  margin: 0.3rem 0 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.inline-error {
+  background: #fff0ed;
+  border: 1px solid #f0b7ab;
+  border-radius: 6px;
+  color: #9a2e22;
+  font-weight: 800;
+  padding: 0.65rem;
 }
 
 .actions {

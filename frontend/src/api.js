@@ -45,6 +45,16 @@ export async function getAccounts() {
   return response.json();
 }
 
+export async function createApolloAccount(payload) {
+  const response = await apiFetch(`${API_BASE_URL}/accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await parseError(response));
+  return response.json();
+}
+
 export async function previewPeople(payload) {
   const response = await apiFetch(`${API_BASE_URL}/preview-people`, {
     method: 'POST',

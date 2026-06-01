@@ -36,6 +36,13 @@ class HealthResponse(BaseModel):
     accounts_configured: int
 
 
+class ApolloAccountCreateRequest(BaseModel):
+    account_email: str = Field(min_length=3, max_length=255)
+    api_key: str = Field(min_length=6, max_length=500)
+    email_credit_limit: int | None = Field(default=None, ge=0, le=100000)
+    notes: str = Field(default="", max_length=500)
+
+
 class CampaignCreateRequest(BaseModel):
     people: list[PersonPreview]
     apollo_account_index: int | None = None

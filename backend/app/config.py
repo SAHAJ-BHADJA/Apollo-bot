@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     export_dir: Path = Field(default=BACKEND_DIR / "exports", alias="EXPORT_DIR")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
     app_api_token: str = Field(default="", alias="APP_API_TOKEN")
+    app_secret_key: str = Field(default="", alias="APP_SECRET_KEY")
     request_timeout_seconds: float = Field(default=30.0, alias="REQUEST_TIMEOUT_SECONDS")
     max_retries: int = Field(default=3, alias="MAX_RETRIES")
 

@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from .apollo_client import ApolloAPIError, ApolloClient
 from .config import Settings, get_settings
 from .database import (
+    create_apollo_account,
+    get_apollo_account_key,
     get_state,
     list_accounts,
     mark_account_used,
@@ -24,28 +26,34 @@ class AccountResult:
 class AccountManager:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
-        sync_accounts(self.settings.api_keys)
+        sync_accounts(
+            self.settings.api_keys,
+            self.settings.account_emails,
+            self.settings.email_credit_limits,
+        )
 
     def _ensure_keys(self) -> None:
-        if not self.settings.api_keys:
+        if not any(account["status"] != "failed" for account in list_accounts()):
             raise ApolloAPIError("No Apollo API keys configured. Add APOLLO_API_KEYS to .env.", "failed")
 
     def _client(self, account_index: int) -> ApolloClient:
         self._ensure_keys()
-        if account_index < 0 or account_index >= len(self.settings.api_keys):
+        api_key = get_apollo_account_key(account_index)
+        if not api_key:
             raise ApolloAPIError(f"Apollo account {account_index} is not configured.", "failed")
-        return ApolloClient(self.settings.api_keys[account_index], self.settings)
+        return ApolloClient(api_key, self.settings)
 
     def accounts(self) -> list[dict]:
-        sync_accounts(self.settings.api_keys)
+        sync_accounts(
+            self.settings.api_keys,
+            self.settings.account_emails,
+            self.settings.email_credit_limits,
+        )
         accounts = list_accounts()
-        emails = self.settings.account_emails
-        credit_limits = self.settings.email_credit_limits
         active_index = get_state("active_account_index")
         for account in accounts:
             index = account["account_index"]
-            account["account_email"] = emails[index] if index < len(emails) else ""
-            credit_limit = credit_limits[index] if index < len(credit_limits) else None
+            credit_limit = account.get("email_credit_limit")
             used = int(account.get("total_verified_emails_exported") or 0)
             account["email_credit_limit"] = credit_limit
             account["estimated_email_credits_remaining"] = (
@@ -60,17 +68,16 @@ class AccountManager:
     def current_index(self, requested_index: int | None = None) -> int:
         self._ensure_keys()
         if requested_index is not None:
-            if requested_index < 0 or requested_index >= len(self.settings.api_keys):
+            if not any(account["account_index"] == requested_index for account in self.accounts()):
                 raise ApolloAPIError(f"Apollo account {requested_index} is not configured.", "failed")
             return requested_index
         active = get_state("active_account_index")
         if active is not None:
             try:
                 index = int(active)
-                if 0 <= index < len(self.settings.api_keys):
-                    account = next((item for item in self.accounts() if item["account_index"] == index), None)
-                    if account and account["status"] == "active":
-                        return index
+                account = next((item for item in self.accounts() if item["account_index"] == index), None)
+                if account and account["status"] == "active":
+                    return index
             except ValueError:
                 pass
         return self.next_available_index(exclude=[])
@@ -82,13 +89,29 @@ class AccountManager:
         for account in accounts:
             if account["account_index"] not in excluded and account["status"] == "active":
                 return account["account_index"]
-        for index in range(len(self.settings.api_keys)):
-            if index not in excluded:
-                return index
+        for account in accounts:
+            if account["account_index"] not in excluded:
+                return account["account_index"]
         raise ApolloAPIError("All configured Apollo accounts appear empty, limited, or failed.", "empty")
 
     def set_active(self, account_index: int) -> None:
         set_state("active_account_index", str(account_index))
+
+    def add_account(
+        self,
+        account_email: str,
+        api_key: str,
+        email_credit_limit: int | None = None,
+        notes: str = "",
+    ) -> dict:
+        account = create_apollo_account(
+            account_email.strip(),
+            api_key.strip(),
+            email_credit_limit,
+            notes.strip(),
+        )
+        self.set_active(account["account_index"])
+        return account
 
     def handle_account_error(self, account_index: int, error: ApolloAPIError) -> str:
         status = error.account_status if error.account_status in ROTATABLE_STATUSES else "failed"

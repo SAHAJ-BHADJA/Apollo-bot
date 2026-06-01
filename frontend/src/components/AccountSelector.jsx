@@ -1,6 +1,14 @@
-import React from 'react';
+import { Plus, X } from 'lucide-react';
+import React, { useState } from 'react';
 
-export default function AccountSelector({ accounts, value, onChange }) {
+export default function AccountSelector({ accounts, value, onChange, onAddAccount }) {
+  const [showForm, setShowForm] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [emailCreditLimit, setEmailCreditLimit] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const currentAccount = accounts.find((account) => account.is_active);
   const selectedAccount =
     value === null || value === undefined
@@ -29,9 +37,54 @@ export default function AccountSelector({ accounts, value, onChange }) {
     return 'Apollo remaining email credits are not exposed here; showing local app usage';
   };
 
+  const resetForm = () => {
+    setAccountEmail('');
+    setApiKey('');
+    setEmailCreditLimit('');
+    setNotes('');
+    setFormError('');
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!onAddAccount) return;
+    setFormError('');
+    if (!accountEmail.trim()) {
+      setFormError('Account email is required.');
+      return;
+    }
+    if (!apiKey.trim()) {
+      setFormError('Apollo API key is required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onAddAccount({
+        account_email: accountEmail.trim(),
+        api_key: apiKey.trim(),
+        email_credit_limit: emailCreditLimit === '' ? null : Number(emailCreditLimit),
+        notes: notes.trim(),
+      });
+      resetForm();
+      setShowForm(false);
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="field-group account-control">
-      <label htmlFor="account">Apollo account</label>
+      <div className="filter-heading">
+        <label htmlFor="account">Apollo account</label>
+        {onAddAccount && (
+          <button className="text-button" type="button" onClick={() => setShowForm(true)}>
+            <Plus size={15} />
+            Add account
+          </button>
+        )}
+      </div>
       <select
         id="account"
         value={value ?? ''}
@@ -71,6 +124,85 @@ export default function AccountSelector({ accounts, value, onChange }) {
             <span>{selectedAccount.total_email_reveal_requests || 0} CSV downloads</span>
             <span>{selectedAccount.total_verified_emails_exported || 0} verified emails exported</span>
           </div>
+        </div>
+      )}
+      {showForm && (
+        <div className="modal-backdrop" role="presentation">
+          <form className="modal-card account-modal" onSubmit={handleSubmit}>
+            <div className="modal-heading">
+              <div>
+                <h2>Add Apollo account</h2>
+                <p>Saved keys are encrypted. The frontend will only show the masked key after saving.</p>
+              </div>
+              <button
+                className="icon-button secondary-button"
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setShowForm(false);
+                }}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <section className="field-group">
+              <label htmlFor="apollo-account-email">Account email</label>
+              <input
+                id="apollo-account-email"
+                value={accountEmail}
+                onChange={(event) => setAccountEmail(event.target.value)}
+                placeholder="name@example.com"
+              />
+            </section>
+            <section className="field-group">
+              <label htmlFor="apollo-api-key">Apollo API key</label>
+              <input
+                id="apollo-api-key"
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="Paste Apollo API key"
+              />
+            </section>
+            <section className="field-group">
+              <label htmlFor="apollo-credit-limit">Estimated monthly email credit limit</label>
+              <input
+                id="apollo-credit-limit"
+                type="number"
+                min="0"
+                value={emailCreditLimit}
+                onChange={(event) => setEmailCreditLimit(event.target.value)}
+                placeholder="Optional"
+              />
+            </section>
+            <section className="field-group">
+              <label htmlFor="apollo-account-notes">Notes</label>
+              <input
+                id="apollo-account-notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Optional"
+              />
+            </section>
+            {formError && <div className="inline-error">{formError}</div>}
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setShowForm(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}>
+                <Plus size={18} />
+                {saving ? 'Saving...' : 'Save account'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </section>

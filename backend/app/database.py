@@ -140,6 +140,10 @@ def init_db() -> None:
             )
             """
         )
+        ensure_column(conn, "apollo_accounts", "account_email", "TEXT")
+        ensure_column(conn, "apollo_accounts", "encrypted_api_key", "TEXT")
+        ensure_column(conn, "apollo_accounts", "source", "TEXT NOT NULL DEFAULT 'env'")
+        ensure_column(conn, "apollo_accounts", "email_credit_limit", "INTEGER")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS search_runs (
@@ -320,36 +324,69 @@ def init_db() -> None:
         )
 
 
-def sync_accounts(keys: Iterable[str]) -> None:
+def sync_accounts(
+    keys: Iterable[str],
+    emails: Iterable[str] | None = None,
+    credit_limits: Iterable[int | None] | None = None,
+) -> None:
+    from .config import get_settings
+    from .crypto_service import SecretBox
+
+    key_list = list(keys)
+    email_list = list(emails or [])
+    credit_limit_list = list(credit_limits or [])
+    secret_box = SecretBox(get_settings())
     now = utc_now()
     with get_db() as conn:
         existing = {row["id"]: row for row in conn.execute("SELECT * FROM apollo_accounts").fetchall()}
-        for index, key in enumerate(keys):
+        for index, key in enumerate(key_list):
             key_masked = mask_key(key)
+            encrypted_api_key = secret_box.encrypt(key)
+            account_email = email_list[index] if index < len(email_list) else ""
+            email_credit_limit = (
+                credit_limit_list[index] if index < len(credit_limit_list) else None
+            )
             row = existing.get(index)
             if row is None:
                 conn.execute(
                     """
                     INSERT INTO apollo_accounts
-                    (id, key_masked, status, notes, created_at, updated_at)
-                    VALUES (?, ?, 'active', '', ?, ?)
+                    (id, key_masked, account_email, encrypted_api_key, source, email_credit_limit,
+                     status, notes, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'env', ?, 'active', '', ?, ?)
                     """,
-                    (index, key_masked, now, now),
+                    (index, key_masked, account_email, encrypted_api_key, email_credit_limit, now, now),
                 )
-            elif row["key_masked"] != key_masked:
+            elif (
+                row["key_masked"] != key_masked
+                or row["account_email"] != account_email
+                or not row["encrypted_api_key"]
+                or row["email_credit_limit"] != email_credit_limit
+                or row["source"] != "env"
+            ):
                 conn.execute(
                     """
                     UPDATE apollo_accounts
-                    SET key_masked = ?, status = 'active', notes = 'API key changed; status reset.',
+                    SET key_masked = ?, account_email = ?, encrypted_api_key = ?, source = 'env',
+                        email_credit_limit = ?, status = 'active',
+                        notes = CASE WHEN key_masked != ? THEN 'API key changed; status reset.' ELSE notes END,
                         updated_at = ?
                     WHERE id = ?
                     """,
-                    (key_masked, now, index),
+                    (
+                        key_masked,
+                        account_email,
+                        encrypted_api_key,
+                        email_credit_limit,
+                        key_masked,
+                        now,
+                        index,
+                    ),
                 )
 
-        configured_indexes = set(range(len(list(keys))))
-        for account_id in existing:
-            if account_id not in configured_indexes:
+        configured_indexes = set(range(len(key_list)))
+        for account_id, row in existing.items():
+            if row["source"] == "env" and account_id not in configured_indexes:
                 conn.execute(
                     """
                     UPDATE apollo_accounts
@@ -364,7 +401,8 @@ def list_accounts() -> list[dict]:
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT id AS account_index, key_masked AS masked_key, status, last_used_at,
+            SELECT id AS account_index, key_masked AS masked_key, account_email, source,
+                   email_credit_limit, status, last_used_at,
                    total_preview_requests, total_email_reveal_requests, notes,
                    COALESCE((
                        SELECT SUM(verified_email_count)
@@ -376,6 +414,86 @@ def list_accounts() -> list[dict]:
             """
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def get_apollo_account_key(account_index: int) -> str | None:
+    from .config import get_settings
+    from .crypto_service import SecretBox
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT encrypted_api_key FROM apollo_accounts WHERE id = ?",
+            (account_index,),
+        ).fetchone()
+    if not row or not row["encrypted_api_key"]:
+        return None
+    return SecretBox(get_settings()).decrypt(row["encrypted_api_key"])
+
+
+def create_apollo_account(
+    account_email: str,
+    api_key: str,
+    email_credit_limit: int | None = None,
+    notes: str = "",
+) -> dict:
+    from .config import get_settings
+    from .crypto_service import SecretBox
+
+    now = utc_now()
+    key_masked = mask_key(api_key)
+    encrypted_api_key = SecretBox(get_settings()).encrypt(api_key)
+    with get_db() as conn:
+        existing = conn.execute(
+            """
+            SELECT id FROM apollo_accounts
+            WHERE source != 'env'
+              AND (key_masked = ? OR LOWER(COALESCE(account_email, '')) = LOWER(?))
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (key_masked, account_email),
+        ).fetchone()
+        if existing:
+            account_id = int(existing["id"])
+            conn.execute(
+                """
+                UPDATE apollo_accounts
+                SET account_email = ?, key_masked = ?, encrypted_api_key = ?, source = 'user',
+                    email_credit_limit = ?, status = 'active', notes = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    account_email,
+                    key_masked,
+                    encrypted_api_key,
+                    email_credit_limit,
+                    notes,
+                    now,
+                    account_id,
+                ),
+            )
+        else:
+            row = conn.execute("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM apollo_accounts").fetchone()
+            account_id = int(row["next_id"])
+            conn.execute(
+                """
+                INSERT INTO apollo_accounts
+                (id, key_masked, account_email, encrypted_api_key, source, email_credit_limit,
+                 status, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'user', ?, 'active', ?, ?, ?)
+                """,
+                (
+                    account_id,
+                    key_masked,
+                    account_email,
+                    encrypted_api_key,
+                    email_credit_limit,
+                    notes,
+                    now,
+                    now,
+                ),
+            )
+    return next(account for account in list_accounts() if account["account_index"] == account_id)
 
 
 def set_state(key: str, value: str) -> None:

@@ -20,6 +20,7 @@ from .database import (
 )
 from .gmail_client import GmailAuthError, GmailClient
 from .models import (
+    ApolloAccountCreateRequest,
     CampaignCreateRequest,
     CampaignSettingsRequest,
     DownloadCsvRequest,
@@ -108,12 +109,27 @@ def api_error(error: ApolloAPIError) -> HTTPException:
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", accounts_configured=len(settings.api_keys))
+    return HealthResponse(status="ok", accounts_configured=len(AccountManager(settings).accounts()))
 
 
 @app.get("/accounts")
 def accounts() -> list[dict]:
     return AccountManager(settings).accounts()
+
+
+@app.post("/accounts", status_code=201)
+def create_account(payload: ApolloAccountCreateRequest) -> dict:
+    try:
+        manager = AccountManager(settings)
+        account = manager.add_account(
+            payload.account_email,
+            payload.api_key,
+            payload.email_credit_limit,
+            payload.notes,
+        )
+        return {"account": account, "accounts": manager.accounts()}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/senders")

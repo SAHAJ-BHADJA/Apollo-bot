@@ -18,6 +18,7 @@ import {
 import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  createApolloAccount,
   createCampaignFromPreview,
   cancelCampaignRemaining,
   deleteAttachment,
@@ -229,6 +230,19 @@ export default function App() {
       await refreshBasics();
     });
     setPreviewing(false);
+  };
+
+  const handleAddApolloAccount = async (payload) => {
+    let createdAccount = null;
+    await runTask('Adding Apollo account.', async () => {
+      const response = await createApolloAccount(payload);
+      createdAccount = response.account;
+      setAccounts(response.accounts || []);
+      setSelectedAccount(response.account.account_index);
+      setMessages([`${response.account.account_email || 'Apollo account'} added and selected.`]);
+      await refreshBasics();
+    });
+    return createdAccount;
   };
 
   const handleDownload = async () => {
@@ -463,6 +477,7 @@ export default function App() {
           accounts={accounts}
           selectedAccount={selectedAccount}
           setSelectedAccount={setSelectedAccount}
+          onAddApolloAccount={handleAddApolloAccount}
           canPreview={canPreview}
           handlePreview={handlePreview}
           handleDownload={handleDownload}
@@ -608,7 +623,12 @@ function Extractor(props) {
             <label htmlFor="max-people">Max people</label>
             <input id="max-people" type="number" min="1" max="5000" value={props.maxPeople} onChange={(event) => props.setMaxPeople(event.target.value)} />
           </section>
-          <AccountSelector accounts={props.accounts} value={props.selectedAccount} onChange={props.setSelectedAccount} />
+          <AccountSelector
+            accounts={props.accounts}
+            value={props.selectedAccount}
+            onChange={props.setSelectedAccount}
+            onAddAccount={props.onAddApolloAccount}
+          />
         </div>
 
         <LocationSelector locations={props.locations} onChange={props.setLocations} />
