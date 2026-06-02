@@ -36,6 +36,12 @@ class ApolloClient:
         if response.status_code == 401 or "invalid api key" in body or "unauthorized" in body:
             return ApolloAPIError("Apollo rejected this API key.", "failed", response.status_code)
         if response.status_code == 403:
+            if "api_inaccessible" in body or "not accessible with this api_key on a free plan" in body:
+                return ApolloAPIError(
+                    "Apollo People Search API is not accessible with this API key on a free plan.",
+                    "empty",
+                    response.status_code,
+                )
             if "credit" in body or "plan" in body or "limit" in body:
                 return ApolloAPIError("Apollo account has no credits or is plan-limited.", "empty", response.status_code)
             return ApolloAPIError("Apollo account is forbidden for this endpoint.", "failed", response.status_code)
