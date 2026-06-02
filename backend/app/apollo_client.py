@@ -200,13 +200,20 @@ class ApolloClient:
                     json={"details": details},
                 )
             except ApolloAPIError as error:
-                if matches:
-                    raise ApolloPartialRevealError(
-                        error.message,
-                        error.account_status,
-                        error.status_code,
-                        matches,
-                    ) from error
-                raise
+                for person in batch:
+                    try:
+                        match = self.reveal_email(person)
+                    except ApolloAPIError as single_error:
+                        if matches:
+                            raise ApolloPartialRevealError(
+                                single_error.message,
+                                single_error.account_status,
+                                single_error.status_code,
+                                matches,
+                            ) from single_error
+                        raise single_error from error
+                    if match:
+                        matches.append(match)
+                continue
             matches.extend(data.get("matches") or [])
         return matches
