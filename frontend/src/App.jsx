@@ -233,16 +233,21 @@ export default function App() {
   };
 
   const handleAddApolloAccount = async (payload) => {
-    let createdAccount = null;
-    await runTask('Adding Apollo account.', async () => {
+    setActivity('Adding Apollo account.');
+    setError('');
+    try {
       const response = await createApolloAccount(payload);
-      createdAccount = response.account;
       setAccounts(response.accounts || []);
       setSelectedAccount(response.account.account_index);
       setMessages([`${response.account.account_email || 'Apollo account'} added and selected.`]);
       await refreshBasics();
-    });
-    return createdAccount;
+      return response.account;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setActivity('');
+    }
   };
 
   const handleDownload = async () => {
