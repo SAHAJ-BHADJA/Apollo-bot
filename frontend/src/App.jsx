@@ -214,6 +214,7 @@ export default function App() {
 
   const handlePreview = async () => {
     setPreviewing(true);
+    setPeople([]);
     await runTask('Searching Apollo. Preview does not reveal emails.', async () => {
       setMessages([]);
       setVerifiedCount(null);

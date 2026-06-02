@@ -27,8 +27,8 @@ export default function PeopleTable({ people, loading }) {
           </tr>
         </thead>
         <tbody>
-          {people.map((person) => (
-            <tr key={person.apollo_person_id}>
+          {people.map((person, index) => (
+            <tr key={`${person.apollo_person_id}-${index}`}>
               <td>{person.first_name}</td>
               <td>{person.last_name}</td>
               <td>{person.title}</td>
