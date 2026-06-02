@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from .apollo_client import ApolloAPIError, ApolloClient
+from .apollo_client import ApolloAPIError, ApolloClient, ApolloPartialRevealError
 from .config import Settings, get_settings
 from .database import (
     create_apollo_account,
@@ -182,6 +182,14 @@ class AccountManager:
                 update_account_status(account_index, "active", "")
                 self.set_active(account_index)
                 return enriched, AccountResult(account_index=account_index, messages=messages)
+            except ApolloPartialRevealError as error:
+                mark_account_used(account_index, "email_reveal")
+                messages.append(
+                    "Apollo stopped email reveal before all people were processed: "
+                    f"{error.message} CSV includes only verified emails revealed before the limit."
+                )
+                self.set_active(account_index)
+                return error.partial_matches, AccountResult(account_index=account_index, messages=messages)
             except ApolloAPIError as error:
                 failure = self.handle_account_error(account_index, error)
                 tried.append(account_index)

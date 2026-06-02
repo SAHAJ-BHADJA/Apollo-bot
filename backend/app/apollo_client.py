@@ -14,6 +14,18 @@ class ApolloAPIError(Exception):
         self.status_code = status_code
 
 
+class ApolloPartialRevealError(ApolloAPIError):
+    def __init__(
+        self,
+        message: str,
+        account_status: str = "failed",
+        status_code: int | None = None,
+        partial_matches: list[dict[str, Any]] | None = None,
+    ):
+        super().__init__(message, account_status, status_code)
+        self.partial_matches = partial_matches or []
+
+
 class ApolloClient:
     def __init__(self, api_key: str, settings: Settings):
         self.api_key = api_key
@@ -180,11 +192,21 @@ class ApolloClient:
             ]
             if not details:
                 continue
-            data = self._request(
-                "POST",
-                self.settings.apollo_bulk_match_path,
-                params=[("reveal_personal_emails", "false"), ("reveal_phone_number", "false")],
-                json={"details": details},
-            )
+            try:
+                data = self._request(
+                    "POST",
+                    self.settings.apollo_bulk_match_path,
+                    params=[("reveal_personal_emails", "false"), ("reveal_phone_number", "false")],
+                    json={"details": details},
+                )
+            except ApolloAPIError as error:
+                if matches:
+                    raise ApolloPartialRevealError(
+                        error.message,
+                        error.account_status,
+                        error.status_code,
+                        matches,
+                    ) from error
+                raise
             matches.extend(data.get("matches") or [])
         return matches
