@@ -118,6 +118,19 @@ class AccountManager:
         update_account_status(account_index, status, error.message)
         return error.message
 
+    def handle_reveal_error(self, account_index: int, error: ApolloAPIError) -> str:
+        account = next(
+            (item for item in list_accounts() if item["account_index"] == account_index),
+            None,
+        )
+        current_status = account["status"] if account else "active"
+        next_status = current_status if current_status in ROTATABLE_STATUSES else "active"
+        if next_status == "active":
+            update_account_status(account_index, "active", f"Email reveal failed: {error.message}")
+        else:
+            update_account_status(account_index, next_status, error.message)
+        return error.message
+
     def search_people(
         self,
         company_name: str,
@@ -142,7 +155,7 @@ class AccountManager:
                 self.set_active(account_index)
                 return people, AccountResult(account_index=account_index, messages=messages)
             except ApolloAPIError as error:
-                failure = self.handle_account_error(account_index, error)
+                failure = self.handle_reveal_error(account_index, error)
                 tried.append(account_index)
                 messages.append(f"Apollo account {account_index} failed: {failure}")
                 if not allow_rotation:
