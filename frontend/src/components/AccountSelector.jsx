@@ -46,7 +46,7 @@ export default function AccountSelector({ accounts, value, onChange, onAddAccoun
   };
 
   const handleSubmit = async (event) => {
-    event.preventDefault();
+    event?.preventDefault();
     if (!onAddAccount) return;
     setFormError('');
     if (!accountEmail.trim()) {
@@ -128,10 +128,21 @@ export default function AccountSelector({ accounts, value, onChange, onAddAccoun
       )}
       {showForm && (
         <div className="modal-backdrop" role="presentation">
-          <form className="modal-card account-modal" onSubmit={handleSubmit}>
+          <div
+            className="modal-card account-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-apollo-account-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') {
+                event.preventDefault();
+                handleSubmit(event);
+              }
+            }}
+          >
             <div className="modal-heading">
               <div>
-                <h2>Add Apollo account</h2>
+                <h2 id="add-apollo-account-title">Add Apollo account</h2>
                 <p>Saved keys are encrypted. The frontend will only show the masked key after saving.</p>
               </div>
               <button
@@ -197,12 +208,12 @@ export default function AccountSelector({ accounts, value, onChange, onAddAccoun
               >
                 Cancel
               </button>
-              <button type="submit" disabled={saving}>
+              <button type="button" onClick={handleSubmit} disabled={saving}>
                 <Plus size={18} />
                 {saving ? 'Saving...' : 'Save account'}
               </button>
             </div>
-          </form>
+          </div>
         </div>
       )}
     </section>
